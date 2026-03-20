@@ -23,7 +23,7 @@ use ethlambda_network_api::{InitBlockChain, InitP2P, ToBlockChainToP2PRef, ToP2P
 use ethlambda_p2p::{Bootnode, P2P, SwarmConfig, build_swarm, parse_enrs};
 use ethlambda_types::primitives::H256;
 use ethlambda_types::{
-    genesis::GenesisConfig,
+    genesis::{GenesisConfig, deser_pubkey_hex},
     signature::ValidatorSecretKey,
     state::{State, ValidatorPubkeyBytes},
 };
@@ -234,20 +234,6 @@ struct AnnotatedValidator {
     _proposal_pubkey: ValidatorPubkeyBytes,
     attestation_privkey_file: PathBuf,
     proposal_privkey_file: PathBuf,
-}
-
-pub fn deser_pubkey_hex<'de, D>(d: D) -> Result<ValidatorPubkeyBytes, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::de::Error;
-
-    let value = String::deserialize(d)?;
-    let pubkey: ValidatorPubkeyBytes = hex::decode(&value)
-        .map_err(|_| D::Error::custom("ValidatorPubkey value is not valid hex"))?
-        .try_into()
-        .map_err(|_| D::Error::custom("ValidatorPubkey length != 52"))?;
-    Ok(pubkey)
 }
 
 fn read_validator_keys(
