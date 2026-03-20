@@ -5,6 +5,7 @@ use ethlambda_types::{
     },
     block::{Block as DomainBlock, BlockBody as DomainBlockBody},
     checkpoint::Checkpoint as DomainCheckpoint,
+    genesis::deser_pubkey_hex,
     primitives::{BitList, H256, VariableList},
     state::{ChainConfig, State, Validator as DomainValidator, ValidatorPubkeyBytes},
 };
@@ -92,11 +93,9 @@ impl From<BlockHeader> for ethlambda_types::block::BlockHeader {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Validator {
     index: u64,
-    #[serde(rename = "attestationPubkey")]
-    #[serde(deserialize_with = "deser_pubkey_hex")]
+    #[serde(rename = "attestationPubkey", deserialize_with = "deser_pubkey_hex")]
     attestation_pubkey: ValidatorPubkeyBytes,
-    #[serde(rename = "proposalPubkey")]
-    #[serde(deserialize_with = "deser_pubkey_hex")]
+    #[serde(rename = "proposalPubkey", deserialize_with = "deser_pubkey_hex")]
     proposal_pubkey: ValidatorPubkeyBytes,
 }
 
@@ -272,23 +271,4 @@ pub struct TestInfo {
     pub description: String,
     #[serde(rename = "fixtureFormat")]
     pub fixture_format: String,
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-pub fn deser_pubkey_hex<'de, D>(d: D) -> Result<ValidatorPubkeyBytes, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::Deserialize;
-    use serde::de::Error;
-
-    let value = String::deserialize(d)?;
-    let pubkey: ValidatorPubkeyBytes = hex::decode(value.strip_prefix("0x").unwrap_or(&value))
-        .map_err(|_| D::Error::custom("ValidatorPubkey value is not valid hex"))?
-        .try_into()
-        .map_err(|_| D::Error::custom("ValidatorPubkey length != 52"))?;
-    Ok(pubkey)
 }

@@ -61,20 +61,12 @@ pub type JustificationRoots = ssz_types::VariableList<H256, HistoricalRootsLimit
 pub type JustificationValidators =
     ssz_types::BitList<ssz_types::typenum::Prod<HistoricalRootsLimit, ValidatorRegistryLimit>>;
 
-/// Represents a validator's static metadata and operational interface.
-///
-/// Each validator has two independent XMSS keys: one for signing attestations
-/// and one for signing block proposals. This allows signing both in the same
-/// slot without violating OTS (one-time signature) constraints.
 #[derive(Debug, Clone, Serialize, Encode, Decode, TreeHash)]
 pub struct Validator {
-    /// XMSS public key used for attestation signing.
     #[serde(serialize_with = "serialize_pubkey_hex")]
     pub attestation_pubkey: ValidatorPubkeyBytes,
-    /// XMSS public key used for block proposal signing.
     #[serde(serialize_with = "serialize_pubkey_hex")]
     pub proposal_pubkey: ValidatorPubkeyBytes,
-    /// Validator index in the registry.
     pub index: u64,
 }
 

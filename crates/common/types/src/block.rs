@@ -10,16 +10,9 @@ use crate::{
     state::ValidatorRegistryLimit,
 };
 
-/// Envelope carrying a block and its aggregated signatures.
 #[derive(Clone, Encode, Decode)]
 pub struct SignedBlock {
-    /// The block being signed.
     pub message: Block,
-
-    /// Aggregated signature payload for the block.
-    ///
-    /// Contains per-attestation aggregated proofs and the proposer's signature
-    /// over the block root using the proposal key.
     pub signature: BlockSignatures,
 }
 
@@ -33,54 +26,27 @@ impl core::fmt::Debug for SignedBlock {
     }
 }
 
-/// Signature payload for the block.
 #[derive(Clone, Encode, Decode)]
 pub struct BlockSignatures {
-    /// Attestation signatures for the aggregated attestations in the block body.
-    ///
-    /// Each entry corresponds to an aggregated attestation from the block body and
-    /// contains the leanVM aggregated signature proof bytes for the participating validators.
-    ///
-    /// TODO:
-    /// - Eventually this field will be replaced by a single SNARK aggregating *all* signatures.
+    /// One aggregated proof per attestation in the block body.
     pub attestation_signatures: AttestationSignatures,
-
-    /// Proposer's signature over the block root using the proposal key.
+    /// Proposer's signature over `hash_tree_root(block)` using the proposal key.
     pub proposer_signature: XmssSignature,
 }
 
-/// List of per-attestation aggregated signature proofs.
-///
-/// Each entry corresponds to an aggregated attestation from the block body.
-///
-/// It contains:
-///     - the participants bitfield,
-///     - proof bytes from leanVM signature aggregation.
 pub type AttestationSignatures =
     ssz_types::VariableList<AggregatedSignatureProof, ValidatorRegistryLimit>;
 
-/// Cryptographic proof that a set of validators signed a message.
-///
-/// This container encapsulates the output of the leanVM signature aggregation,
-/// combining the participant set with the proof bytes. This design ensures
-/// the proof is self-describing: it carries information about which validators
-/// it covers.
-///
-/// The proof can verify that all participants signed the same message in the
-/// same epoch, using a single verification operation instead of checking
-/// each signature individually.
+/// Aggregated leanVM signature proof covering a set of validators.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct AggregatedSignatureProof {
-    /// Bitfield indicating which validators' signatures are included.
     pub participants: AggregationBits,
-    /// The raw aggregated proof bytes from leanVM.
     pub proof_data: ByteListMiB,
 }
 
 pub type ByteListMiB = ByteList<U1048576>;
 
 impl AggregatedSignatureProof {
-    /// Create a new aggregated signature proof.
     pub fn new(participants: AggregationBits, proof_data: ByteListMiB) -> Self {
         Self {
             participants,
@@ -88,9 +54,7 @@ impl AggregatedSignatureProof {
         }
     }
 
-    /// Create an empty proof with the given participants bitfield.
-    ///
-    /// Used as a placeholder when actual aggregation is not yet implemented.
+    /// Empty proof (placeholder for test paths without real aggregation).
     pub fn empty(participants: AggregationBits) -> Self {
         Self {
             participants,
@@ -98,51 +62,30 @@ impl AggregatedSignatureProof {
         }
     }
 
-    /// Returns the validator indices that are set in the participants bitfield.
     pub fn participant_indices(&self) -> impl Iterator<Item = u64> + '_ {
         validator_indices(&self.participants)
     }
 }
 
-/// The header of a block, containing metadata.
-///
-/// Block headers summarize blocks without storing full content. The header
-/// includes references to the parent and the resulting state. It also contains
-/// a hash of the block body.
-///
-/// Headers are smaller than full blocks. They're useful for tracking the chain
-/// without storing everything.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Encode, Decode, TreeHash)]
 pub struct BlockHeader {
-    /// The slot in which the block was proposed
     pub slot: u64,
-    /// The index of the validator that proposed the block
     pub proposer_index: u64,
-    /// The root of the parent block
     pub parent_root: H256,
-    /// The root of the state after applying transactions in this block
     pub state_root: H256,
-    /// The root of the block body
     pub body_root: H256,
 }
 
-/// A complete block including header and body.
 #[derive(Debug, Clone, Encode, Decode, TreeHash)]
 pub struct Block {
-    /// The slot in which the block was proposed.
     pub slot: u64,
-    /// The index of the validator that proposed the block.
     pub proposer_index: u64,
-    /// The root of the parent block.
     pub parent_root: H256,
-    /// The root of the state after applying transactions in this block.
     pub state_root: H256,
-    /// The block's payload.
     pub body: BlockBody,
 }
 
 impl Block {
-    /// Extract the block header, computing the body root.
     pub fn header(&self) -> BlockHeader {
         BlockHeader {
             slot: self.slot,
@@ -153,10 +96,6 @@ impl Block {
         }
     }
 
-    /// Reconstruct a block from header and body.
-    ///
-    /// The caller should ensure that `header.body_root` matches `body.tree_hash_root()`.
-    /// This is verified with a debug assertion but not in release builds.
     pub fn from_header_and_body(header: BlockHeader, body: BlockBody) -> Self {
         debug_assert_eq!(
             header.body_root,
@@ -173,19 +112,10 @@ impl Block {
     }
 }
 
-/// The body of a block, containing payload data.
-///
-/// Currently, the main operation is voting. Validators submit attestations which are
-/// packaged into blocks.
 #[derive(Debug, Default, Clone, Encode, Decode, TreeHash)]
 pub struct BlockBody {
-    /// Plain validator attestations carried in the block body.
-    ///
-    /// Individual signatures live in the aggregated block signature list, so
-    /// these entries contain only attestation data without per-attestation signatures.
     pub attestations: AggregatedAttestations,
 }
 
-/// List of aggregated attestations included in a block.
 pub type AggregatedAttestations =
     ssz_types::VariableList<AggregatedAttestation, ValidatorRegistryLimit>;
